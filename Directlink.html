@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Hogwarts Spellbook - Lumos & Nox Voice Controller</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Wizarding Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700;900&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- TensorFlow.js and Speech Commands Model -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            decorative: ['"Cinzel Decorative"', 'serif'],
+            cinzel: ['Cinzel', 'serif'],
+            fell: ['"IM Fell English"', 'serif'],
+          },
+          colors: {
+            parchment: {
+              100: '#FFFDF5',
+              200: '#FBF4DF',
+              300: '#F3E7C4',
+              400: '#E6D39E',
+              700: '#8C6C38',
+              800: '#5C431F',
+              900: '#34230D',
+            },
+            hogwartsGold: '#D4AF37',
+            hogwartsGoldGlow: '#FCE079',
+            darkMagic: '#060812',
+            spectralViolet: '#6D28D9',
+          },
+          animation: {
+            'rune-spin': 'runeSpin 35s linear infinite',
+            'float-wand': 'floatWand 5s ease-in-out infinite',
+            'pulse-glow': 'pulseGlow 2.5s ease-in-out infinite alternate',
+          },
+          keyframes: {
+            runeSpin: {
+              '0%': { transform: 'rotate(0deg)' },
+              '100%': { transform: 'rotate(360deg)' },
+            },
+            floatWand: {
+              '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
+              '50%': { transform: 'translateY(-10px) rotate(1.5deg)' },
+            },
+            pulseGlow: {
+              '0%': { filter: 'drop-shadow(0 0 15px rgba(212, 175, 55, 0.4))' },
+              '100%': { filter: 'drop-shadow(0 0 45px rgba(254, 240, 138, 0.95))' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Wizarding Scrollbars & Ornate Utilities */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090B16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #785822;
+      border-radius: 4px;
+      border: 1px solid #D4AF37;
+    }
+
+    /* Gold Leaf Vintage Borders */
+    .gold-border {
+      border: 2px solid #D4AF37;
+      box-shadow: inset 0 0 15px rgba(212, 175, 55, 0.2), 0 0 15px rgba(0, 0, 0, 0.8);
+    }
+    
+    .gold-border-corner {
+      position: relative;
+    }
+    .gold-border-corner::before, .gold-border-corner::after {
+      content: '✦';
+      position: absolute;
+      color: #D4AF37;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .gold-border-corner::before { top: 4px; left: 6px; }
+    .gold-border-corner::after { bottom: 4px; right: 6px; }
+
+    /* Theme Background Transitions */
+    .theme-nox {
+      background: radial-gradient(circle at 50% 30%, #15102a 0%, #080914 55%, #030409 100%);
+      color: #E2E8F0;
+    }
+
+    .theme-lumos {
+      background: radial-gradient(circle at 50% 35%, #fffdf0 0%, #f7eac3 45%, #e9d59f 100%);
+      color: #2D1E0F;
+    }
+
+    /* Glass Panels for Nox & Lumos */
+    .wizard-card {
+      background: rgba(13, 16, 32, 0.75);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(212, 175, 55, 0.35);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .theme-lumos .wizard-card {
+      background: rgba(253, 248, 233, 0.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(140, 108, 56, 0.4);
+      box-shadow: 0 10px 30px rgba(120, 80, 20, 0.15);
+    }
+
+    /* Ornate Parchment Text Colors */
+    .theme-lumos .title-gold {
+      color: #5C3D11;
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+    }
+    .theme-nox .title-gold {
+      color: #FCE079;
+      text-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+    }
+
+    .theme-lumos .sub-text { color: #735122; }
+    .theme-nox .sub-text { color: #94A3B8; }
+
+    /* Ancient Rune Ring Rotation */
+    .rune-symbol {
+      font-family: 'Cinzel Decorative', serif;
+      letter-spacing: 0.35em;
+    }
+
+    /* Spell Incantation Banner Keyframe Animation */
+    @keyframes spellIncant {
+      0% { opacity: 0; transform: scale(0.5) translateY(30px); filter: blur(12px); }
+      40% { opacity: 1; transform: scale(1.15) translateY(-8px); filter: blur(0px); }
+      70% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0px); }
+      100% { opacity: 0; transform: scale(0.95) translateY(-20px); filter: blur(8px); }
+    }
+    .animate-incant {
+      animation: spellIncant 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Custom Slider Styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type=range]:focus {
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 8px;
+      cursor: pointer;
+      background: #2A1F10;
+      border-radius: 4px;
+      border: 1px solid #D4AF37;
+    }
+    .theme-lumos input[type=range]::-webkit-slider-runnable-track {
+      background: #E6D39E;
+      border: 1px solid #8C6C38;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #D4AF37;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -6px;
+      box-shadow: 0 0 10px #D4AF37;
+    }
+  </style>
+</head>
+
+<body id="wizardBody" class="h-full font-fell antialiased theme-nox transition-colors duration-1000 select-none overflow-x-hidden">
+
+  <!-- Fullscreen Magic Particles & Ambient Rays Canvas -->
+  <canvas id="magicCanvas" class="fixed inset-0 w-full h-full pointer-events-none z-0"></canvas>
+
+  <!-- Ornate Decorative Vintage Frame Borders -->
+  <div class="fixed top-2 left-2 right-2 bottom-2 pointer-events-none z-50 border border-amber-500/30 rounded-xl flex flex-col justify-between p-2">
+    <div class="flex justify-between items-center text-amber-400/40 text-xs font-decorative">
+      <span>ᚠ ᚢ TH ᚨ ᚱ ᚲ</span>
+      <span>HOGWARTS INCANTATION CHAMBER</span>
+      <span>ᚷ ᚹ ᚺ ᚾ ᛁ ᛃ</span>
+    </div>
+    <div class="flex justify-between items-center text-amber-400/40 text-xs font-decorative">
+      <span>✦ SPELL ENGINE ✦</span>
+      <span>ᛇ ᛈ ᛉ ᛋ ᛏ ᛒ ᛖ</span>
+    </div>
+  </div>
+
+  <!-- Primary Application Layer -->
+  <div class="relative z-10 min-h-full flex flex-col justify-between p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+
+    <!-- Header Navigation Bar -->
+    <header class="flex flex-col md:flex-row items-center justify-between gap-4 gold-border gold-border-corner wizard-card p-4 rounded-2xl">
+      <div class="flex items-center gap-4">
+        <!-- Hogwarts Crest Emblem -->
+        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-amber-600 via-amber-800 to-amber-950 border-2 border-amber-400 flex items-center justify-center text-amber-200 shadow-[0_0_20px_rgba(212,175,55,0.4)] text-xl">
+          <i class="fa-solid fa-hat-wizard"></i>
+        </div>
+        <div>
+          <h1 class="font-decorative text-xl sm:text-2xl font-bold tracking-wider title-gold">
+            SPELLBOOK OF LUMOS & NOX
+          </h1>
+          <p class="text-xs font-cinzel sub-text tracking-widest uppercase">Ministry of Magic • Acoustic Wand Controller</p>
+        </div>
+      </div>
+
+      <!-- Status Indicator Badge -->
+      <div class="flex items-center gap-3 px-4 py-2 rounded-xl border border-amber-500/40 bg-amber-950/30 text-xs font-cinzel">
+        <span id="statusDot" class="w-3 h-3 rounded-full bg-slate-500 shadow-[0_0_8px_rgba(148,163,184,0.6)]"></span>
+        <span id="statusText" class="tracking-wide text-amber-200 font-semibold">Charm Uninitialized</span>
+      </div>
+    </header>
+
+    <!-- Main Magical Wand Stage -->
+    <main class="my-auto py-8 flex flex-col items-center justify-center text-center relative">
+
+      <!-- Dynamic Incantation Spell Banner -->
+      <div id="spellBanner" class="hidden absolute top-[-30px] z-40 pointer-events-none">
+        <div id="spellBannerText" class="font-decorative text-4xl sm:text-6xl md:text-7xl font-black tracking-widest text-amber-300 drop-shadow-[0_0_40px_rgba(245,158,11,0.9)] animate-incant">
+          ⚡ LUMOS MAXIMA! ⚡
+        </div>
+      </div>
+
+      <!-- Elder Wand & Rune Ring Interactive Stage -->
+      <div class="relative flex flex-col items-center justify-center cursor-pointer my-6 group" onclick="toggleSpellManual()">
+        
+        <!-- Rotating Rune Ring Glow -->
+        <div id="runeRing" class="absolute w-72 h-72 sm:w-96 sm:h-96 rounded-full border border-amber-400/30 border-dashed flex items-center justify-center animate-rune-spin transition-all duration-700">
+          <span class="absolute top-1 text-xs text-amber-400/60 font-decorative">ᚠ</span>
+          <span class="absolute bottom-1 text-xs text-amber-400/60 font-decorative">ᚢ</span>
+          <span class="absolute left-1 text-xs text-amber-400/60 font-decorative">ᚱ</span>
+          <span class="absolute right-1 text-xs text-amber-400/60 font-decorative">ᚲ</span>
+        </div>
+
+        <!-- Ethereal Sound Wave Pulsing Rings -->
+        <div id="pulseRing1" class="absolute w-60 h-60 sm:w-80 sm:h-80 rounded-full border border-amber-500/20 transition-all duration-300 scale-90 opacity-40"></div>
+        <div id="pulseRing2" class="absolute w-80 h-80 sm:w-[26rem] sm:h-[26rem] rounded-full border border-purple-500/20 transition-all duration-500 scale-75 opacity-20"></div>
+
+        <!-- The Glowing Magical Orb Tip -->
+        <div id="magicOrb" class="relative z-20 w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-radial from-amber-100 via-amber-500 to-amber-900 border-2 border-amber-200/80 shadow-[0_0_60px_rgba(212,175,55,0.6)] flex items-center justify-center transition-all duration-700 transform group-hover:scale-105">
+          <!-- Inner Radiant Core -->
+          <div id="orbCore" class="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-white opacity-85 filter blur-sm transition-all duration-500 animate-pulse-glow"></div>
+          
+          <!-- Center Symbol -->
+          <div class="absolute inset-0 flex items-center justify-center text-amber-950 text-3xl sm:text-4xl drop-shadow-md">
+            <i id="orbIcon" class="fa-solid fa-sun transition-transform duration-700"></i>
+          </div>
+        </div>
+
+        <!-- Ornate SVG Elder Wand -->
+        <div class="relative z-10 -mt-6 transition-transform duration-500 animate-float-wand">
+          <svg width="32" height="220" viewBox="0 0 32 220" fill="none" xmlns="http://www.w3.org/2000/svg" class="filter drop-shadow-2xl">
+            <!-- Wand Tip Glow Attachment -->
+            <circle id="svgTipGlow" cx="16" cy="12" r="10" fill="#FDE047" filter="blur(3px)" class="transition-all duration-500" />
+            
+            <!-- Elder Wand Segmented Wood Structure -->
+            <path d="M14 20 L18 20 L17 50 L15 50 Z" fill="#3D2612" stroke="#D4AF37" stroke-width="0.5"/>
+            <!-- Node 1 -->
+            <ellipse cx="16" cy="50" rx="4.5" ry="3" fill="#6B4423" stroke="#D4AF37" stroke-width="0.5"/>
+            <path d="M14.5 52 L17.5 52 L16.5 90 L15.5 90 Z" fill="#2E1C0C"/>
+            <!-- Node 2 -->
+            <ellipse cx="16" cy="90" rx="5.5" ry="3.5" fill="#5C3B1E" stroke="#D4AF37" stroke-width="0.5"/>
+            <path d="M14 93.5 L18 93.5 L17 140 L15 140 Z" fill="#241609"/>
+            <!-- Node 3 -->
+            <ellipse cx="16" cy="140" rx="6.5" ry="4" fill="#4A2E16" stroke="#D4AF37" stroke-width="0.5"/>
+            <!-- Handle & Carved Runes -->
+            <path d="M13.5 144 L18.5 144 L19 210 C19 214 13 214 13 210 Z" fill="#1A0F06" stroke="#D4AF37" stroke-width="0.8"/>
+            <!-- Handle Grip Bands -->
+            <line x1="13.5" y1="160" x2="18.5" y2="160" stroke="#D4AF37" stroke-width="0.8"/>
+            <line x1="13.8" y1="175" x2="18.2" y2="175" stroke="#D4AF37" stroke-width="0.8"/>
+            <line x1="14" y1="190" x2="18" y2="190" stroke="#D4AF37" stroke-width="0.8"/>
+          </svg>
+        </div>
+
+        <p class="mt-4 font-cinzel text-xs tracking-widest uppercase title-gold font-semibold">
+          <i class="fa-solid fa-sparkles mr-1"></i> Tap Elder Wand or Orb to Incant
+        </p>
+      </div>
+
+      <!-- Main Action Controls -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-md mt-2">
+        <button id="startBtn" onclick="toggleListening()" class="w-full px-8 py-4 rounded-xl font-cinzel font-bold text-sm sm:text-base tracking-widest transition-all duration-300 bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-slate-950 shadow-[0_0_30px_rgba(212,175,55,0.4)] hover:shadow-[0_0_45px_rgba(245,158,11,0.7)] hover:scale-[1.02] active:scale-[0.98] border border-amber-300 flex items-center justify-center gap-3">
+          <i id="micIcon" class="fa-solid fa-microphone text-base"></i>
+          <span id="startBtnText">CAST LISTENING CHARM</span>
+        </button>
+      </div>
+
+      <!-- Quick Incantation Buttons -->
+      <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <button onclick="triggerSpell('Lumos', 0.99)" class="px-4 py-2 rounded-xl wizard-card font-cinzel text-xs font-semibold tracking-wider text-amber-300 hover:border-amber-400 transition-all flex items-center gap-2">
+          <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i> Incant Lumos
+        </button>
+        <button onclick="triggerSpell('Nox', 0.99)" class="px-4 py-2 rounded-xl wizard-card font-cinzel text-xs font-semibold tracking-wider text-indigo-300 hover:border-indigo-400 transition-all flex items-center gap-2">
+          <i class="fa-solid fa-moon text-indigo-400"></i> Incant Nox
+        </button>
+        <button onclick="triggerSpell('Lumos Maxima', 0.99)" class="px-4 py-2 rounded-xl wizard-card font-cinzel text-xs font-semibold tracking-wider text-yellow-200 hover:border-yellow-300 transition-all flex items-center gap-2">
+          <i class="fa-solid fa-sun text-yellow-400"></i> Lumos Maxima!
+        </button>
+      </div>
+
+    </main>
+
+    <!-- Lower Panel: Incantation Meters & Spell Tuning -->
+    <footer class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+      
+      <!-- Incantation Voice Monitor Panel -->
+      <div class="wizard-card gold-border gold-border-corner rounded-2xl p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4 border-b border-amber-500/20 pb-2">
+          <h2 class="font-cinzel font-bold text-sm tracking-wide title-gold flex items-center gap-2">
+            <i class="fa-solid fa-scroll text-amber-400"></i> Acoustic Incantation Monitor
+          </h2>
+          <span id="liveAudioLevel" class="font-cinzel text-xs font-bold sub-text">Acoustics: 0%</span>
+        </div>
+
+        <div class="space-y-4">
+          <!-- Background Noise Gauge -->
+          <div>
+            <div class="flex justify-between font-cinzel text-xs mb-1 font-semibold">
+              <span class="sub-text"><i class="fa-solid fa-wind mr-1 opacity-60"></i> Ambient Noise</span>
+              <span id="scoreNoiseText" class="title-gold">0.0%</span>
+            </div>
+            <div class="w-full bg-slate-950/80 rounded-full h-3 p-0.5 border border-slate-700/60">
+              <div id="barNoise" class="bg-slate-500 h-full rounded-full transition-all duration-150" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Lumos Incantation Gauge -->
+          <div>
+            <div class="flex justify-between font-cinzel text-xs mb-1 font-bold">
+              <span class="text-amber-400"><i class="fa-solid fa-sun mr-1"></i> Lumos Charm</span>
+              <span id="scoreLumosText" class="text-amber-300">0.0%</span>
+            </div>
+            <div class="w-full bg-slate-950/80 rounded-full h-3 p-0.5 border border-amber-500/40">
+              <div id="barLumos" class="bg-gradient-to-r from-amber-500 via-yellow-400 to-yellow-200 h-full rounded-full transition-all duration-150 shadow-[0_0_12px_rgba(252,211,77,0.7)]" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Nox Incantation Gauge -->
+          <div>
+            <div class="flex justify-between font-cinzel text-xs mb-1 font-bold">
+              <span class="text-indigo-300"><i class="fa-solid fa-moon mr-1"></i> Nox Counter-Curse</span>
+              <span id="scoreNoxText" class="text-indigo-300">0.0%</span>
+            </div>
+            <div class="w-full bg-slate-950/80 rounded-full h-3 p-0.5 border border-indigo-500/40">
+              <div id="barNox" class="bg-gradient-to-r from-indigo-600 via-indigo-400 to-purple-300 h-full rounded-full transition-all duration-150 shadow-[0_0_12px_rgba(99,102,241,0.7)]" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spell Parameters & Model Tuning -->
+      <div class="wizard-card gold-border gold-border-corner rounded-2xl p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-3 border-b border-amber-500/20 pb-2">
+            <h2 class="font-cinzel font-bold text-sm tracking-wide title-gold flex items-center gap-2">
+              <i class="fa-solid fa-sliders text-amber-400"></i> Spell Tuning & Acoustic Threshold
+            </h2>
+            <button onclick="toggleAudioFX()" id="audioFXBtn" class="font-cinzel text-xs px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all">
+              <i class="fa-solid fa-volume-high mr-1"></i> Chimes: ON
+            </button>
+          </div>
+
+          <!-- Sensitivity Slider -->
+          <div class="mb-4">
+            <div class="flex justify-between font-cinzel text-xs font-semibold mb-1">
+              <label for="thresholdSlider" class="sub-text">Incantation Confidence Threshold</label>
+              <span id="thresholdVal" class="text-amber-400 font-bold">75%</span>
+            </div>
+            <input type="range" id="thresholdSlider" min="50" max="95" value="75" step="1" oninput="updateThreshold(this.value)" class="w-full">
+          </div>
+
+          <!-- Model URL Field -->
+          <div>
+            <label for="modelUrlInput" class="block font-cinzel text-xs font-semibold sub-text mb-1">Teachable Machine Audio Vault</label>
+            <div class="flex gap-2">
+              <input type="text" id="modelUrlInput" value="https://teachablemachine.withgoogle.com/models/n9vW31j6M/" class="w-full px-3 py-1.5 rounded-lg bg-slate-950/80 border border-amber-500/40 font-mono text-xs text-amber-200 focus:outline-none focus:border-amber-400 transition-colors">
+              <button onclick="reloadCustomModel()" class="font-cinzel px-3 py-1.5 rounded-lg bg-amber-950/60 hover:bg-amber-900/80 border border-amber-500/50 text-xs font-semibold text-amber-300 transition-colors">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> Recast
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p class="font-fell text-xs sub-text mt-4 leading-relaxed italic">
+          <i class="fa-solid fa-feather text-amber-400 mr-1"></i> Pronounce clearly into your microphone: Speak <strong class="title-gold">"Lumos"</strong> to illuminate your surroundings or <strong class="text-indigo-300">"Nox"</strong> to extinguish the light.
+        </p>
+      </div>
+
+    </footer>
+
+  </div>
+
+  <!-- JavaScript Wizard Engine Logic -->
+  <script type="text/javascript">
+    // --- Global Application State ---
+    let recognizer = null;
+    let isListening = false;
+    let confidenceThreshold = 0.75;
+    let soundEnabled = true;
+    let currentSpellState = 'nox'; // 'lumos' or 'nox'
+    let lastSpellTime = 0;
+    const SPELL_COOLDOWN_MS = 1200;
+
+    // Web Audio Context for Magical Sound Effects & Audio Level Analysis
+    let audioCtx = null;
+    let micAnalyser = null;
+    let micStream = null;
+
+    // --- Dynamic Canvas Particle & Magic Mist Physics ---
+    const canvas = document.getElementById('magicCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let windowWidth = window.innerWidth;
+    let windowHeight = window.innerHeight;
+    canvas.width = windowWidth;
+    canvas.height = windowHeight;
+
+    window.addEventListener('resize', () => {
+      windowWidth = window.innerWidth;
+      windowHeight = window.innerHeight;
+      canvas.width = windowWidth;
+      canvas.height = windowHeight;
+    });
+
+    let lumosIntensity = 0; // Smooth 0 to 1 transition factor
+    const particles = [];
+    const PARTICLE_COUNT = 100;
+
+    class WizardParticle {
+      constructor() {
+        this.reset(true);
+      }
+
+      reset(initial = false) {
+        this.x = Math.random() * windowWidth;
+        this.y = initial ? Math.random() * windowHeight : windowHeight + 15;
+        this.size = Math.random() * 3.5 + 1;
+        this.speedY = Math.random() * -1.5 - 0.4;
+        this.speedX = (Math.random() - 0.5) * 0.9;
+        this.alpha = Math.random() * 0.7 + 0.2;
+        this.pulseSpeed = Math.random() * 0.04 + 0.01;
+        this.hue = Math.random() > 0.4 ? 43 : 33; // Gold / Amber spectrum
+      }
+
+      update() {
+        this.y += this.speedY;
+        this.x += this.speedX + Math.sin(this.y * 0.008) * 0.4;
+        this.alpha += Math.sin(Date.now() * this.pulseSpeed) * 0.015;
+
+        if (this.y < -20 || this.x < -20 || this.x > windowWidth + 20) {
+          this.reset(false);
+        }
+      }
+
+      draw() {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, this.alpha));
+
+        if (lumosIntensity > 0.3) {
+          // Lumos State: Radiant Golden Solar Dust Motes
+          ctx.fillStyle = `hsla(${this.hue}, 100%, ${60 + lumosIntensity * 30}%, ${this.alpha})`;
+          ctx.shadowColor = `hsl(${this.hue}, 100%, 50%)`;
+          ctx.shadowBlur = 14 * lumosIntensity;
+        } else {
+          // Nox State: Midnight Ethereal Violet Embers
+          ctx.fillStyle = `rgba(165, 180, 252, ${this.alpha * 0.6})`;
+          ctx.shadowColor = `rgba(109, 40, 217, 0.7)`;
+          ctx.shadowBlur = 6;
+        }
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * (0.8 + lumosIntensity * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Populate ambient particles
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push(new WizardParticle());
+    }
+
+    // Explosive Burst Sparks on Spell Cast
+    let burstParticles = [];
+    function createSpellBurst(x, y, colorType) {
+      for (let i = 0; i < 50; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 9 + 2.5;
+        burstParticles.push({
+          x: x,
+          y: y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          size: Math.random() * 4.5 + 1.5,
+          life: 1.0,
+          decay: Math.random() * 0.025 + 0.015,
+          color: colorType === 'lumos' ? '#FCE079' : '#A5B4FC'
+        });
+      }
+    }
+
+    let lightRaysAngle = 0;
+
+    // Main Canvas Render Loop
+    function animateMagic() {
+      // Smoothly interpolate lumosIntensity towards target (1 for lumos, 0 for nox)
+      const targetIntensity = currentSpellState === 'lumos' ? 1 : 0;
+      lumosIntensity += (targetIntensity - lumosIntensity) * 0.04;
+
+      ctx.clearRect(0, 0, windowWidth, windowHeight);
+
+      // Render Rotating Solar Sunburst Beams in Lumos State
+      if (lumosIntensity > 0.05) {
+        lightRaysAngle += 0.0015;
+        ctx.save();
+        ctx.translate(windowWidth / 2, windowHeight * 0.38);
+        ctx.globalAlpha = lumosIntensity * 0.18;
+
+        for (let i = 0; i < 14; i++) {
+          ctx.rotate((Math.PI * 2) / 14);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(-45, windowWidth);
+          ctx.lineTo(45, windowWidth);
+          ctx.closePath();
+          ctx.fillStyle = '#FCE079';
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // Update & Render Floating Ambient Particles
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+
+      // Update & Render Burst Particles
+      for (let i = burstParticles.length - 1; i >= 0; i--) {
+        const bp = burstParticles[i];
+        bp.x += bp.vx;
+        bp.y += bp.vy;
+        bp.vx *= 0.94;
+        bp.vy *= 0.94;
+        bp.life -= bp.decay;
+
+        if (bp.life <= 0) {
+          burstParticles.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = bp.life;
+        ctx.fillStyle = bp.color;
+        ctx.shadowColor = bp.color;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(bp.x, bp.y, bp.size * bp.life, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Live Microphone Amplitude Pulse for Visualizer Rings
+      if (micAnalyser && isListening) {
+        const dataArray = new Uint8Array(micAnalyser.frequencyBinCount);
+        micAnalyser.getByteFrequencyData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const average = sum / dataArray.length;
+        const normalizedVol = Math.min(100, Math.round((average / 128) * 100));
+
+        // Update UI Text
+        const levelText = document.getElementById('liveAudioLevel');
+        if (levelText) levelText.innerText = `Acoustics: ${normalizedVol}%`;
+
+        // Scale Visualizer Rings
+        const ring1 = document.getElementById('pulseRing1');
+        const ring2 = document.getElementById('pulseRing2');
+        if (ring1 && ring2) {
+          const scale1 = 0.90 + (average / 255) * 0.35;
+          const scale2 = 0.75 + (average / 255) * 0.50;
+          ring1.style.transform = `scale(${scale1})`;
+          ring2.style.transform = `scale(${scale2})`;
+        }
+      }
+
+      requestAnimationFrame(animateMagic);
+    }
+
+    // Start Canvas Animation
+    requestAnimationFrame(animateMagic);
+
+
+    // --- Web Audio API Wizard Sound Synthesizer ---
+    function initAudioContext() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playLumosSound() {
+      if (!soundEnabled) return;
+      initAudioContext();
+
+      const now = audioCtx.currentTime;
+      
+      // Majestic Wizarding Chime Chord (D5, F#5, A5, C#6, E6)
+      const frequencies = [587.33, 739.99, 880.00, 1108.73, 1318.51];
+
+      frequencies.forEach((freq, idx) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+
+        gain.gain.setValueAtTime(0.001, now + idx * 0.07);
+        gain.gain.exponentialRampToValueAtTime(0.22, now + idx * 0.07 + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.07 + 0.9);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now + idx * 0.07);
+        osc.stop(now + idx * 0.07 + 0.95);
+      });
+    }
+
+    function playNoxSound() {
+      if (!soundEnabled) return;
+      initAudioContext();
+
+      const now = audioCtx.currentTime;
+
+      // Deep Extinguishing Low-Frequency Sweep + Filtered Resonance
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + 0.75);
+
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.85);
+    }
+
+    function toggleAudioFX() {
+      soundEnabled = !soundEnabled;
+      const btn = document.getElementById('audioFXBtn');
+      if (soundEnabled) {
+        btn.innerHTML = `<i class="fa-solid fa-volume-high mr-1"></i> Chimes: ON`;
+        btn.className = "font-cinzel text-xs px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all";
+      } else {
+        btn.innerHTML = `<i class="fa-solid fa-volume-xmark mr-1"></i> Chimes: OFF`;
+        btn.className = "font-cinzel text-xs px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 hover:bg-slate-800 transition-all";
+      }
+    }
+
+
+    // --- Teachable Machine Speech Command Model Logic ---
+
+    async function createModel(modelURL) {
+      const checkpointURL = modelURL + "model.json";
+      const metadataURL = modelURL + "metadata.json";
+
+      const rec = speechCommands.create(
+        "BROWSER_FFT",
+        undefined,
+        checkpointURL,
+        metadataURL
+      );
+
+      await rec.ensureModelLoaded();
+      return rec;
+    }
+
+    async function toggleListening() {
+      initAudioContext();
+
+      if (isListening) {
+        stopListening();
+        return;
+      }
+
+      const startBtn = document.getElementById('startBtn');
+      const startBtnText = document.getElementById('startBtnText');
+      const micIcon = document.getElementById('micIcon');
+      const statusText = document.getElementById('statusText');
+      const statusDot = document.getElementById('statusDot');
+
+      try {
+        startBtnText.innerText = "SUMMONING SPELL MODEL...";
+        statusText.innerText = "Loading Teachable Machine Model...";
+        statusDot.className = "w-3 h-3 rounded-full bg-amber-400 animate-ping";
+
+        const modelUrl = document.getElementById('modelUrlInput').value.trim();
+        recognizer = await createModel(modelUrl);
+
+        // Access Microphone for visualizer ring feedback
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          const source = audioCtx.createMediaStreamSource(micStream);
+          micAnalyser = audioCtx.createAnalyser();
+          micAnalyser.fftSize = 64;
+          source.connect(micAnalyser);
+        } catch (err) {
+          console.warn("Audio visualizer microphone stream unavailable:", err);
+        }
+
+        isListening = true;
+        startBtnText.innerText = "DISPEL LISTENING CHARM";
+        micIcon.className = "fa-solid fa-microphone-slash text-base text-rose-300 animate-pulse";
+        startBtn.className = "w-full px-8 py-4 rounded-xl font-cinzel font-bold text-sm sm:text-base tracking-widest transition-all duration-300 bg-gradient-to-r from-red-700 via-rose-800 to-red-900 text-white shadow-[0_0_30px_rgba(225,29,72,0.5)] hover:scale-[1.02] border border-red-400 flex items-center justify-center gap-3";
+
+        statusText.innerText = "Listening for 'Lumos' or 'Nox'...";
+        statusDot.className = "w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.8)]";
+
+        // Listen for Voice Commands
+        recognizer.listen(result => {
+          const scores = result.scores;
+          updateScoreBars(scores);
+
+          let highestIndex = 0;
+          let highestScore = 0;
+
+          for (let i = 0; i < scores.length; i++) {
+            if (scores[i] > highestScore) {
+              highestScore = scores[i];
+              highestIndex = i;
+            }
+          }
+
+          const now = Date.now();
+          if (highestScore >= confidenceThreshold && (now - lastSpellTime > SPELL_COOLDOWN_MS)) {
+            if (highestIndex === 1) {
+              triggerSpell("Lumos", highestScore);
+              lastSpellTime = now;
+            } else if (highestIndex === 2) {
+              triggerSpell("Nox", highestScore);
+              lastSpellTime = now;
+            }
+          }
+
+        }, {
+          includeSpectrogram: false,
+          probabilityThreshold: 0.70,
+          invokeCallbackOnNoiseAndUnknown: true,
+          overlapFactor: 0.50
+        });
+
+      } catch (error) {
+        console.error("Error activating speech model:", error);
+        statusText.innerText = "Error loading model. Check console or URL.";
+        statusDot.className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]";
+        startBtnText.innerText = "RETRY LISTENING CHARM";
+        isListening = false;
+      }
+    }
+
+    function stopListening() {
+      if (recognizer && isListening) {
+        recognizer.stopListening();
+      }
+      isListening = false;
+
+      const startBtn = document.getElementById('startBtn');
+      const startBtnText = document.getElementById('startBtnText');
+      const micIcon = document.getElementById('micIcon');
+      const statusText = document.getElementById('statusText');
+      const statusDot = document.getElementById('statusDot');
+
+      startBtnText.innerText = "CAST LISTENING CHARM";
+      micIcon.className = "fa-solid fa-microphone text-base";
+      startBtn.className = "w-full px-8 py-4 rounded-xl font-cinzel font-bold text-sm sm:text-base tracking-widest transition-all duration-300 bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-slate-950 shadow-[0_0_30px_rgba(212,175,55,0.4)] hover:shadow-[0_0_45px_rgba(245,158,11,0.7)] hover:scale-[1.02] border border-amber-300 flex items-center justify-center gap-3";
+
+      statusText.innerText = "Charm Uninitialized";
+      statusDot.className = "w-3 h-3 rounded-full bg-slate-500 shadow-[0_0_8px_rgba(148,163,184,0.6)]";
+
+      updateScoreBars([0, 0, 0]);
+    }
+
+    async function reloadCustomModel() {
+      if (isListening) {
+        stopListening();
+      }
+      await toggleListening();
+    }
+
+
+    // --- UI State & Theme Spell Transitions ---
+
+    function triggerSpell(spellName, score = 1.0) {
+      initAudioContext();
+      const body = document.getElementById('wizardBody');
+      const orbCore = document.getElementById('orbCore');
+      const orbIcon = document.getElementById('orbIcon');
+      const magicOrb = document.getElementById('magicOrb');
+      const svgTipGlow = document.getElementById('svgTipGlow');
+
+      const orbRect = magicOrb.getBoundingClientRect();
+      const orbCenterX = orbRect.left + orbRect.width / 2;
+      const orbCenterY = orbRect.top + orbRect.height / 2;
+
+      if (spellName.toLowerCase().includes('lumos')) {
+        currentSpellState = 'lumos';
+
+        // Apply Warm Antique Parchment Theme
+        body.className = "h-full font-fell antialiased theme-lumos transition-colors duration-1000 select-none overflow-x-hidden";
+
+        // Radiant Orb & Elder Wand Tip Styling
+        orbCore.className = "w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-white opacity-100 filter blur-md transition-all duration-500 animate-pulse";
+        magicOrb.className = "relative z-20 w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-gradient-to-tr from-amber-200 via-yellow-300 to-white shadow-[0_0_100px_rgba(252,211,77,0.95)] border-2 border-white flex items-center justify-center transition-all duration-700 transform scale-110";
+        orbIcon.className = "fa-solid fa-sun text-amber-600 text-4xl sm:text-5xl animate-spin-slow";
+        
+        svgTipGlow.setAttribute('fill', '#FEF08A');
+        svgTipGlow.setAttribute('r', '14');
+        svgTipGlow.setAttribute('filter', 'blur(2px)');
+
+        // Particle Burst & Magical Sound Synthesis
+        createSpellBurst(orbCenterX, orbCenterY, 'lumos');
+        playLumosSound();
+        showSpellBanner(spellName === 'Lumos Maxima' ? '⚡ LUMOS MAXIMA! ⚡' : '✨ LUMOS! ✨');
+
+      } else if (spellName.toLowerCase() === 'nox') {
+        currentSpellState = 'nox';
+
+        // Apply Deep Midnight Dark Theme
+        body.className = "h-full font-fell antialiased theme-nox transition-colors duration-1000 select-none overflow-x-hidden";
+
+        // Dim Extinguished Orb Styling
+        orbCore.className = "w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-indigo-950 opacity-40 filter blur-md transition-all duration-500";
+        magicOrb.className = "relative z-20 w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-radial from-slate-900 via-indigo-950 to-slate-950 shadow-[0_0_30px_rgba(30,27,75,0.7)] border-2 border-indigo-500/40 flex items-center justify-center transition-all duration-700 transform scale-100";
+        orbIcon.className = "fa-solid fa-moon text-indigo-300 text-3xl sm:text-4xl";
+
+        svgTipGlow.setAttribute('fill', '#818CF8');
+        svgTipGlow.setAttribute('r', '6');
+        svgTipGlow.setAttribute('filter', 'blur(4px)');
+
+        // Particle Burst & Extinguishing Sound FX
+        createSpellBurst(orbCenterX, orbCenterY, 'nox');
+        playNoxSound();
+        showSpellBanner('🌙 NOX! 🌙');
+      }
+    }
+
+    function toggleSpellManual() {
+      if (currentSpellState === 'nox') {
+        triggerSpell('Lumos');
+      } else {
+        triggerSpell('Nox');
+      }
+    }
+
+    function showSpellBanner(text) {
+      const banner = document.getElementById('spellBanner');
+      const bannerText = document.getElementById('spellBannerText');
+
+      bannerText.innerText = text;
+      banner.classList.remove('hidden');
+
+      bannerText.classList.remove('animate-incant');
+      void bannerText.offsetWidth; // Force reflow
+      bannerText.classList.add('animate-incant');
+
+      setTimeout(() => {
+        banner.classList.add('hidden');
+      }, 2100);
+    }
+
+    function updateScoreBars(scores) {
+      const scoreNoise = (scores[0] || 0) * 100;
+      const scoreLumos = (scores[1] || 0) * 100;
+      const scoreNox = (scores[2] || 0) * 100;
+
+      document.getElementById('scoreNoiseText').innerText = `${scoreNoise.toFixed(1)}%`;
+      document.getElementById('scoreLumosText').innerText = `${scoreLumos.toFixed(1)}%`;
+      document.getElementById('scoreNoxText').innerText = `${scoreNox.toFixed(1)}%`;
+
+      document.getElementById('barNoise').style.width = `${scoreNoise}%`;
+      document.getElementById('barLumos').style.width = `${scoreLumos}%`;
+      document.getElementById('barNox').style.width = `${scoreNox}%`;
+    }
+
+    function updateThreshold(val) {
+      confidenceThreshold = parseFloat(val) / 100;
+      document.getElementById('thresholdVal').innerText = `${val}%`;
+    }
+  </script>
+</body>
+</html>
